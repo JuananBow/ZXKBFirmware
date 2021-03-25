@@ -1,15 +1,18 @@
 //  Name:     ZXKBFirmware
-//  Version:  1.0
-//  Author:   Mike Daley
-//  Date:     January 2016
+//  Version:  1.1
+//  Original author:   Mike Daley
+//  Date:     March 2021
 //-------------------------------------------------------------------------
+// Swapped data lines to make it work with another configuration and added a few key associations.
+// Modified by: JuananBow
+ 
 #include <Keyboard.h>
 #include "keys.h"
 
 const int dataLines = 5;
 const int addressLines = 8;
-const int dataPin[dataLines] = {A0, A1, A2, A3, 15};          // The Pro-Micro does not have an A4 pin so using 15
-const int address[addressLines] = {2, 3, 4, 5, 6, 7, 8, 9};
+const int dataPin[dataLines] = {A3, A2, A1, A0, 15};          // The Pro-Micro does not have an A4 pin so using 15
+const int address[addressLines] = {9, 8, 7, 6, 5, 4, 3, 2};
 const int keyboardModeSpeakerPin = 10;                        // Speaker will beep based on mode 1 = Spectrum, 2 = Fuse, 3 = PC
 const int keyboardModeButtonPin = 14;                         
 
@@ -18,7 +21,7 @@ const int keyboardModeButtonPin = 14;
 bool symbolShiftPressed = false;
 bool capsShiftPressed = false;
 bool keyboardModeButtonPressed = false;
-bool debug = false;
+bool debug = true;
 
 enum {
   MODE_SPECTRUM = 1,
@@ -37,23 +40,23 @@ int spectrumKeyMap[addressLines][dataLines] = {
   {KEY_P,          KEY_O,        KEY_I, KEY_U, KEY_Y}, // 4
   {KEY_LEFT_SHIFT, KEY_Z,        KEY_X, KEY_C, KEY_V}, // 5
   {KEY_RETURN    , KEY_L,        KEY_K, KEY_J, KEY_H}, // 6
-  {KEY_SPACE     , KEY_LEFT_ALT, KEY_M, KEY_N, KEY_B}, // 7
+  {KEY_SPACE     , KEY_LEFT_CTRL & KEY_LEFT_ALT, KEY_M, KEY_N, KEY_B}, // 7
 };
 
 // Fuse keyboard matrix.  When running FUSE-SDL on the Pi, to get to options you need to 
 // press F1 which is not on the Spectrum+ keyboard, so moving to Fuse keyboard mode (2xbeeps)
 // means that pressing 1 through 9 provides F1 - F9, plus a couple of other keys such as enter. 
-// To navigate the menus A = UP, Z = DOWN, N = LEFT, M = RIGHT
+// To navigate the menus: WASD
 int fuseKeyMap[addressLines][dataLines] = {
 // 0-----------1-------2-------3-------4  
   {KEY_F1,            KEY_F2,         KEY_F3,           KEY_F4,           KEY_F5},
-  {KEY_ESC,           0,              0,                0,                0},
-  {KEY_UP_ARROW,      0,              0,                0,                0},
+  {KEY_LEFT_ALT,      KEY_UP_ARROW,   KEY_RIGHT_ALT,    0,                0},
+  {KEY_LEFT_ARROW,    KEY_DOWN_ARROW, KEY_RIGHT_ARROW,  0,                0},
   {KEY_F10,           KEY_F9,         KEY_F8,           KEY_F7,           KEY_F6},
-  {0,                 0,              0,                0,                0},
-  {0,                 KEY_DOWN_ARROW, 0,                0,                0},
-  {KEY_RETURN,        0,              0,                0,                0},
-  {KEY_SPACE,         0,              KEY_RIGHT_ARROW,  KEY_LEFT_ARROW,   0}  
+  {KEY_P,             0,              0,                0,                0},
+  {KEY_LEFT_CTRL,     KEY_Z,          KEY_X,            0,                0},
+  {KEY_RETURN,        0,              0,                KEY_J,            0},
+  {KEY_SPACE,         KEY_ESC,        KEY_M,            KEY_N,            0}  
 };
 
 // PC Normal keyboard matrix
@@ -79,19 +82,19 @@ int pcKeyMapShifted[addressLines][dataLines] = {
   {KEY_P,          KEY_O,        KEY_I,           KEY_U,        KEY_Y},          // 4
   {KEY_LEFT_SHIFT, KEY_Z,        KEY_X,           KEY_C,        KEY_V},          // 5
   {KEY_RETURN    , KEY_L,        KEY_K,           KEY_J,        KEY_H},          // 6
-  {KEY_BACKSPACE , KEY_LEFT_ALT, KEY_M,           KEY_N,        KEY_B},          // 7
+  {KEY_BACKSPACE , KEY_RIGHT_ALT,KEY_M,           KEY_N,        KEY_B},          // 7
 }; 
 
 // PC Shifted keyboard matrix. 
 int pcKeyMapSymbolShift[addressLines][dataLines] = {
 // 0------------------1------------------2------------------3---------------4  
   {KEY_EXCLAM,        KEY_AT,            KEY_HASH,          KEY_DOLLAR,     KEY_PERCENT},    // 0
-  {KEY_Q,             KEY_W,             KEY_E,             KEY_LESSTHAN,   KEY_GTRTHAN},    // 1
+  {KEY_ESC,           KEY_CAROT,         0,                 KEY_LESSTHAN,   KEY_GTRTHAN},    // 1
   {KEY_TILDA,         KEY_BAR,           KEY_BACKSLASH,     KEY_LEFT_BRACE, KEY_RIGHT_BRACE},// 2
   {KEY_UNDER,         KEY_RIGHT_BRACKET, KEY_LEFT_BRACKET,  KEY_SGL_QUOTE,  KEY_APERSAND},   // 3
-  {KEY_DBL_QUOTE,     KEY_SEMICOLON,     KEY_I,             KEY_SQR_RIGHT,  KEY_SQR_LEFT},   // 4
+  {KEY_DBL_QUOTE,     KEY_SEMICOLON,     0,                 KEY_SQR_RIGHT,  KEY_SQR_LEFT},   // 4
   {KEY_LEFT_SHIFT,    KEY_COLON,         KEY_POUND,         KEY_QUESTION,   KEY_FRWDSLASH},  // 5
-  {KEY_RETURN    ,    KEY_EQUALS,        KEY_PLUS,          KEY_MINUS,      KEY_H},          // 6
+  {KEY_RETURN    ,    KEY_EQUALS,        KEY_PLUS,          KEY_MINUS,      0},              // 6
   {KEY_BACKSPACE ,    0,                 KEY_PERIOD,        KEY_COMMA,      KEY_ASTER},      // 7
 }; 
 
@@ -306,11 +309,9 @@ void printDebug(int addrLine, int dataLine) {
   Serial.print(" - ");
   Serial.print("Data Line: "); Serial.print(dataLine);
   Serial.print(" - ");
-  Serial.print("Key: "); Serial.print(outKey);
+  Serial.print("Key: "); Serial.print(outKey); Serial.print(" "); Serial.print(char(outKey));
   Serial.print(" - ");
   Serial.print((capsShiftPressed) ? "CAPS ON " : "CAPS OFF");
   Serial.print(" : ");
   Serial.println((symbolShiftPressed) ? "SYM ON" : "SYM OFF");  
 }
-
-
