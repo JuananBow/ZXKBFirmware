@@ -1,9 +1,9 @@
 //  Name:     ZXKBFirmware
-//  Version:  1.1
+//  Version:  1.2
 //  Original author:   Mike Daley
 //  Date:     March 2021
 //-------------------------------------------------------------------------
-// Swapped data lines to make it work with another configuration and added a few key associations.
+// Swapped data lines to make it work with another configuration, added a few key associations and special CTRL & ALT modes
 // Modified by: JuananBow
  
 #include <Keyboard.h>
@@ -18,6 +18,7 @@ const int keyboardModeButtonPin = 14;
 
 // Tracking when special keys that need us to send specific USB keyboard values have been pressed means that
 // we can release them correctly without constantly sending Keyboard.release commands for those keys
+bool specialKey = false;
 bool symbolShiftPressed = false;
 bool capsShiftPressed = false;
 bool keyboardModeButtonPressed = false;
@@ -33,14 +34,14 @@ int keyboardMode;
 // Spectrum 16k/48k keyboard matrix. This matrix layout matches the hardware layout
 int spectrumKeyMap[addressLines][dataLines] = {
 // 0---------------1-------------2------3------4  
-  {KEY_1,          KEY_2,        KEY_3, KEY_4, KEY_5}, // 0
-  {KEY_Q,          KEY_W,        KEY_E, KEY_R, KEY_T}, // 1
-  {KEY_A,          KEY_S,        KEY_D, KEY_F, KEY_G}, // 2
-  {KEY_0,          KEY_9,        KEY_8, KEY_7, KEY_6}, // 3
-  {KEY_P,          KEY_O,        KEY_I, KEY_U, KEY_Y}, // 4
-  {KEY_LEFT_SHIFT, KEY_Z,        KEY_X, KEY_C, KEY_V}, // 5
-  {KEY_RETURN    , KEY_L,        KEY_K, KEY_J, KEY_H}, // 6
-  {KEY_SPACE     , KEY_LEFT_CTRL & KEY_LEFT_ALT, KEY_M, KEY_N, KEY_B}, // 7
+  {KEY_1,          KEY_2,                        KEY_3, KEY_4, KEY_5}, // 0
+  {KEY_Q,          KEY_W,                        KEY_E, KEY_R, KEY_T}, // 1
+  {KEY_A,          KEY_S,                        KEY_D, KEY_F, KEY_G}, // 2
+  {KEY_0,          KEY_9,                        KEY_8, KEY_7, KEY_6}, // 3
+  {KEY_P,          KEY_O,                        KEY_I, KEY_U, KEY_Y}, // 4
+  {KEY_LEFT_SHIFT, KEY_Z,                        KEY_X, KEY_C, KEY_V}, // 5
+  {KEY_RETURN,     KEY_L,                        KEY_K, KEY_J, KEY_H}, // 6
+  {KEY_SPACE,      KEY_LEFT_CTRL & KEY_LEFT_ALT, KEY_M, KEY_N, KEY_B}, // 7
 };
 
 // Fuse keyboard matrix.  When running FUSE-SDL on the Pi, to get to options you need to 
@@ -49,14 +50,14 @@ int spectrumKeyMap[addressLines][dataLines] = {
 // To navigate the menus: WASD
 int fuseKeyMap[addressLines][dataLines] = {
 // 0-----------1-------2-------3-------4  
-  {KEY_F1,            KEY_F2,         KEY_F3,           KEY_F4,           KEY_F5},
-  {KEY_LEFT_ALT,      KEY_UP_ARROW,   KEY_RIGHT_ALT,    0,                0},
-  {KEY_LEFT_ARROW,    KEY_DOWN_ARROW, KEY_RIGHT_ARROW,  0,                0},
-  {KEY_F10,           KEY_F9,         KEY_F8,           KEY_F7,           KEY_F6},
-  {KEY_P,             0,              0,                0,                0},
-  {KEY_LEFT_CTRL,     KEY_Z,          KEY_X,            0,                0},
-  {KEY_RETURN,        0,              0,                KEY_J,            0},
-  {KEY_SPACE,         KEY_ESC,        KEY_M,            KEY_N,            0}  
+  {KEY_F1,            KEY_F2,                           KEY_F3,           KEY_F4,           KEY_F5},
+  {KEY_ESC,           KEY_UP_ARROW,                     0,                0,                0},
+  {KEY_LEFT_ARROW,    KEY_DOWN_ARROW,                   KEY_RIGHT_ARROW,  0,                0},
+  {KEY_F10,           KEY_F9,                           KEY_F8,           KEY_F7,           KEY_F6},
+  {KEY_P,             0,                                0,                0,                0},
+  {KEY_LEFT_SHIFT,    KEY_Z,                            KEY_X,            0,                0},
+  {KEY_RETURN,        0,                                0,                KEY_J,            0},
+  {KEY_SPACE,         KEY_LEFT_CTRL & KEY_LEFT_ALT,     KEY_M,            KEY_N,            0}  
 };
 
 // PC Normal keyboard matrix
@@ -68,24 +69,29 @@ int pcKeyMapNormal[addressLines][dataLines] = {
   {KEY_0,          KEY_9,        KEY_8, KEY_7, KEY_6}, // 3
   {KEY_P,          KEY_O,        KEY_I, KEY_U, KEY_Y}, // 4
   {KEY_LEFT_SHIFT, KEY_Z,        KEY_X, KEY_C, KEY_V}, // 5
-  {KEY_RETURN    , KEY_L,        KEY_K, KEY_J, KEY_H}, // 6
-  {KEY_SPACE     , KEY_LEFT_ALT, KEY_M, KEY_N, KEY_B}, // 7
+  {KEY_RETURN,     KEY_L,        KEY_K, KEY_J, KEY_H}, // 6
+  {KEY_SPACE,      0,            KEY_M, KEY_N, KEY_B}, // 7
 }; 
 
-// PC Shifted keyboard matrix. 
+// PC Shifted keyboard matrix.
+// 0xCC0, 0xAA0, 0xCA0 and 0xFFF are special modifiers
+// 1 - 0xCC0 = Left Control, 2 - 0xAA0 = Left Alt, 3 - 0xCA0 = Right Alt
+// These will press the respective key and keep it press until another key is pressed
+// Space (Break) - 0xFFF = CTRL+ALT+DEL 
+// This will send an CTRL+ALT+DEL combination, simulating the Shift+Space=Break
 int pcKeyMapShifted[addressLines][dataLines] = {
 // 0---------------1-------------2----------------3-------------4  
-  {KEY_1,          KEY_2,        KEY_3,           KEY_4,        KEY_LEFT_ARROW}, // 0
+  {0xCC0,          0xAA0,        0xAA1,           0xCC1,        KEY_LEFT_ARROW}, // 0
   {KEY_Q,          KEY_W,        KEY_E,           KEY_R,        KEY_T},          // 1
   {KEY_A,          KEY_S,        KEY_D,           KEY_F,        KEY_G},          // 2
-  {KEY_0,          KEY_9,        KEY_RIGHT_ARROW, KEY_UP_ARROW, KEY_DOWN_ARROW}, // 3
+  {KEY_BACKSPACE,  0xCA0,        KEY_RIGHT_ARROW, KEY_UP_ARROW, KEY_DOWN_ARROW}, // 3
   {KEY_P,          KEY_O,        KEY_I,           KEY_U,        KEY_Y},          // 4
   {KEY_LEFT_SHIFT, KEY_Z,        KEY_X,           KEY_C,        KEY_V},          // 5
-  {KEY_RETURN    , KEY_L,        KEY_K,           KEY_J,        KEY_H},          // 6
-  {KEY_BACKSPACE , KEY_RIGHT_ALT,KEY_M,           KEY_N,        KEY_B},          // 7
+  {KEY_RETURN,     KEY_L,        KEY_K,           KEY_J,        KEY_H},          // 6
+  {0xFFF,          KEY_LEFT_GUI, KEY_M,           KEY_N,        KEY_B},          // 7
 }; 
 
-// PC Shifted keyboard matrix. 
+// PC Symbol-Shifted keyboard matrix. 
 int pcKeyMapSymbolShift[addressLines][dataLines] = {
 // 0------------------1------------------2------------------3---------------4  
   {KEY_EXCLAM,        KEY_AT,            KEY_HASH,          KEY_DOLLAR,     KEY_PERCENT},    // 0
@@ -93,9 +99,9 @@ int pcKeyMapSymbolShift[addressLines][dataLines] = {
   {KEY_TILDA,         KEY_BAR,           KEY_BACKSLASH,     KEY_LEFT_BRACE, KEY_RIGHT_BRACE},// 2
   {KEY_UNDER,         KEY_RIGHT_BRACKET, KEY_LEFT_BRACKET,  KEY_SGL_QUOTE,  KEY_APERSAND},   // 3
   {KEY_DBL_QUOTE,     KEY_SEMICOLON,     0,                 KEY_SQR_RIGHT,  KEY_SQR_LEFT},   // 4
-  {KEY_LEFT_SHIFT,    KEY_COLON,         KEY_POUND,         KEY_QUESTION,   KEY_FRWDSLASH},  // 5
-  {KEY_RETURN    ,    KEY_EQUALS,        KEY_PLUS,          KEY_MINUS,      0},              // 6
-  {KEY_BACKSPACE ,    0,                 KEY_PERIOD,        KEY_COMMA,      KEY_ASTER},      // 7
+  {0,                 KEY_COLON,         KEY_POUND,         KEY_QUESTION,   KEY_FRWDSLASH},  // 5
+  {KEY_TAB,           KEY_EQUALS,        KEY_PLUS,          KEY_MINUS,      0},              // 6
+  {KEY_DELETE,        0,                 KEY_PERIOD,        KEY_COMMA,      KEY_ASTER},      // 7
 }; 
 
 // Array used to store the state of indiviaul keys that have been pressed
@@ -210,14 +216,15 @@ void loop() {
             
           case MODE_PC:
             // In PC mode we use the shift key being pressed to read keys from a different matrix making it
-            // easier to assign different keys to Spectrum keyboard keys e.g. BREAK = BACKSPACE
+            // easier to assign different keys to Spectrum keyboard keys e.g. 0 = BACKSPACE
             if (capsShiftPressed) {
               // Pressing a dedicated arrow key on the Spectrum+ keyboard actually regiters a CAPS SHIFT and then the
               // appropriate number for the arrow e.g. 5, 6, 7, 8. In PC mode this CAPS SHIFT means than as the cursor
               // moves it highlights as well. To stop this happening we release the CAPS SHIFT before sending the arrow
               // key. You now can't highlight with arrow keys but correct movement seemed more important :O)
+              // SymbolShift is added here as well to avoid conflicts with other modifier keys
               if ((addrLine == 3 && dataLine == 2) || (addrLine == 3 and dataLine == 3) || 
-                 (addrLine == 3 && dataLine == 4) || (addrLine == 0 && dataLine == 4)) {
+                 (addrLine == 3 && dataLine == 4) || (addrLine == 0 && dataLine == 4) || (addrLine == 7 && dataLine == 1)) {
                   Keyboard.release(KEY_LEFT_SHIFT);
                  }
               outKey = pcKeyMapShifted[addrLine][dataLine];            
@@ -236,8 +243,56 @@ void loop() {
          // We know what has been pressed and taken the key stroke to be send from the appropriate
          // matrix array, so now send it and marked it as pressed in the keyPressed matrix array
         if (!keyPressed[addrLine][dataLine]) {
+          switch (outKey) {
+            case 0xFFF: // CTRL+ALT+DEL
+                    Keyboard.releaseAll();
+                    delay(100);
+                    Keyboard.press(KEY_LEFT_CTRL);
+                    Keyboard.press(KEY_LEFT_ALT);
+                    Keyboard.press(KEY_DELETE);
+                    delay(100);
+                    Keyboard.releaseAll();
+                    break;
+            
+            case 0xCC0: // Left Ctrl
+                    Keyboard.releaseAll();
+                    Keyboard.press(KEY_LEFT_CTRL);
+                    specialKey = true;
+                    break;
+
+             case 0xAA0: // Left Alt
+                    Keyboard.releaseAll();
+                    Keyboard.press(KEY_LEFT_ALT);
+                    specialKey = true;
+                    break;
+             
+             case 0xCC1: // Right Ctrl
+                    Keyboard.releaseAll();
+                    Keyboard.press(KEY_RIGHT_CTRL);
+                    specialKey = true;
+                    break;
+             
+             case 0xAA1: // Right Alt
+                    Keyboard.releaseAll();
+                    Keyboard.press(KEY_RIGHT_ALT);
+                    specialKey = true;
+                    break;
+             
+             case 0xCA0: // Ctrl+Alt
+                    Keyboard.releaseAll();
+                    Keyboard.press(KEY_LEFT_CTRL);
+                    Keyboard.press(KEY_LEFT_ALT);
+                    specialKey = true;
+                    break;
+                    
+             default:
+                    Keyboard.press(outKey);
+                    if (specialKey) {
+                      Keyboard.releaseAll();
+                      specialKey = false;
+                    }
+          }
           if (debug) printDebug(addrLine, dataLine);
-          Keyboard.press(outKey);
           keyPressed[addrLine][dataLine] = true;
         }
 
