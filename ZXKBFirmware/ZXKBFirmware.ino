@@ -1,8 +1,8 @@
 //  Name:               ZXKBFirmware
-//  Version:            2.0
+//  Version:            2.1
 //  Author:             JuananBow
 //  Original author:    Mike Daley
-//  Date:               March 2021
+//  Date:               April 2021
 //-------------------------------------------------------------------------
 
 #include <Keyboard.h>
@@ -12,8 +12,10 @@ const int dataLines = 5;
 const int addressLines = 8;
 const int dataPin[dataLines] = {A3, A2, A1, A0, 15};          // The Pro-Micro does not have an A4 pin so using 15 instead
 const int address[addressLines] = {9, 8, 7, 6, 5, 4, 3, 2};
-//FUNCTION DISABLED const int keyboardModeSpeakerPin = 10;                        // Speaker will beep based on mode 1 = Spectrum, 2 = Fuse, 3 = PC
-const int keyboardModeButtonPin = 14;
+const int keyboardModeButtonPin = 0;                          // The RGB Led needs 3 pins and we are out of pins, so using the pin 0 (TX) for the keyboard mode button instead 
+const int red_light_pin= 10;
+const int green_light_pin = 16;
+const int blue_light_pin = 14;
 
 // Tracking when special keys that need us to send specific USB keyboard values have been pressed means that
 // we can release them correctly without constantly sending Keyboard.release commands for those keys
@@ -26,7 +28,7 @@ bool modKeySubCTRL = false;
 bool modKeySubALT = false;
 bool modKeySubSHIFT = false;
 bool modKeySubGUI = false;
-
+bool ledstatus = true;
 
 enum {
   MODE_SPECTRUM = 1,
@@ -82,8 +84,7 @@ int pcKeyMapNormal[addressLines][dataLines] = {
 };
 
 // PC Shifted keyboard matrix.
-// 0xFFF = CTRL+ALT+DEL
-// This will send an CTRL+ALT+DEL combination, simulating the Shift+Space=Break
+// 0xFFF = CTRL+ALT+DEL - This key will send an CTRL+ALT+DEL combination, simulating the Shift+Space=Break
 int pcKeyMapShifted[addressLines][dataLines] = {
   // 0---------------1-------------2----------------3-------------4---------------
   {0x00,           0x00,         0x00,            0x00,         KEY_LEFT_ARROW}, // 0
@@ -124,11 +125,15 @@ bool keyPressed[addressLines][dataLines] = {
 // *** SETUP ***
 void setup() {
 
-  // Setup the keyboard default mode, LED and button pins
-  // pinMode(keyboardModeSpeakerPin, OUTPUT);
-  // digitalWrite(keyboardModeSpeakerPin, LOW);
-  // pinMode(keyboardModeButtonPin, INPUT);
+  // Setup the keyboard default mode and button pins
+  pinMode(keyboardModeButtonPin, INPUT);
   keyboardMode = MODE_SPECTRUM;
+
+  // Setup the RGB pins and the default value
+  pinMode(red_light_pin, OUTPUT);
+  pinMode(green_light_pin, OUTPUT);
+  pinMode(blue_light_pin, OUTPUT);
+  RGB_color(64,0,128); // Spectrum mode = Purple
 
   // Set the address line pins to output and set HIGH
   for (int a = 0; a < addressLines; a++) {
@@ -169,13 +174,24 @@ void loop() {
 
     // Cycle through the different keyboard modes
     keyboardMode = (keyboardMode + 1 > MODE_PC) ? MODE_SPECTRUM : keyboardMode + 1;
+    delay (100);
 
-    // Beeps signal which mode the keyboard is in with the number of beeps matching the keyboard mode selected
-    //for (int beeps = 0; beeps < keyboardMode; beeps++) {
-    //  beep(keyboardModeSpeakerPin, 350, 100);
-    //  delay(40);
-    //}
-
+    // Changes the color of the RGB Led according to the operation mode active
+    if (ledstatus) {
+      switch (keyboardMode) {
+            case MODE_SPECTRUM:
+              RGB_color(64,0,128);      // Purple
+              break;
+            case MODE_GAMEPAD:
+              RGB_color(128,128,128);   // White
+              break;
+            case MODE_PC:
+              RGB_color(0, 0, 128);     // Blue
+              break;
+            default:
+              RGB_color(0, 0, 0);       // Off
+      }
+    }
     // Resets the modkey submode and releases all modifier keys
     clearmodkeys();
 
@@ -197,17 +213,27 @@ void loop() {
       // ...and if it's LOW then a key has been pressed
       if (pressed == LOW) {
 
-        // "Cheat code" to enable debug: D + Mode Button, SPACE + Mode to disable
-        if (addrLine == 2 && dataLine == 2 && (digitalRead(keyboardModeButtonPin) == LOW) && (!debug)) {
+        // "Cheat codes"
+        // Debug: D + Mode to enable,  S + Mode to disable
+        // LED:   L + Mode to disable, K + Mode to enable
+        if ( (addrLine == 2 && dataLine == 2) && (digitalRead(keyboardModeButtonPin) == LOW) && (!debug) ) {
           debug = true;
           Serial.println("Debug enabled!");
           printDebug(keyboardModeButtonPin,digitalRead(keyboardModeButtonPin));
         }
-        if (addrLine == 7 && dataLine == 0 && (digitalRead(keyboardModeButtonPin) == LOW) && (debug) ) {
+        if ( (addrLine == 2 && dataLine == 1) && (digitalRead(keyboardModeButtonPin) == LOW) && (debug) ) {
           debug = false;
           Serial.println("Debug disabled!");
         }
-
+        if ( (addrLine == 6 && dataLine == 1) && (digitalRead(keyboardModeButtonPin) == LOW) && (ledstatus) ) {
+          if (debug) Serial.println("LED disabled!");
+          ledstatus = false;
+          RGB_color(0,0,0);
+        }
+        if ( (addrLine == 6 && dataLine == 2) && (digitalRead(keyboardModeButtonPin) == LOW) && (!ledstatus) ) {
+          if (debug) Serial.println("LED enabled!");
+          ledstatus = true;
+        }
           
         // Deal with special keys by setting flags so we know what has been pressed
         if (addrLine == 7 && dataLine == 1 && !symbolShiftPressed) {
@@ -358,14 +384,11 @@ void loop() {
 
 }
 
-// void beep(int pin, int duration, int frequency) {
-//  for (int x = 0; x < duration; x++) {
-//    digitalWrite(pin, HIGH);
-//    delayMicroseconds(frequency);
-//    digitalWrite(pin, LOW);
-//    delayMicroseconds(frequency);
-//  }
-//}
+void RGB_color(int red_light_value, int green_light_value, int blue_light_value) {
+  analogWrite(red_light_pin, red_light_value);
+  analogWrite(green_light_pin, green_light_value);
+  analogWrite(blue_light_pin, blue_light_value);
+}
 
 void clearmodkeys() {
   delay(100);
