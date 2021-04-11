@@ -12,14 +12,13 @@ const int dataLines = 5;
 const int addressLines = 8;
 const int dataPin[dataLines] = {A3, A2, A1, A0, 15};          // The Pro-Micro does not have an A4 pin so using 15 instead
 const int address[addressLines] = {9, 8, 7, 6, 5, 4, 3, 2};
-const int keyboardModeButtonPin = 0;                          // The RGB Led needs 3 pins and we are out of pins, so using the pin 0 (TX) for the keyboard mode button instead 
+const int keyboardModeButtonPin = 0;                          // The RGB Led needs 3 pins and we are out of pins, so using pin 0 (TX) for the keyboard mode button instead 
 const int red_light_pin= 10;
 const int green_light_pin = 16;
 const int blue_light_pin = 14;
 
 // Tracking when special keys that need us to send specific USB keyboard values have been pressed means that
 // we can release them correctly without constantly sending Keyboard.release commands for those keys
-bool debug = false;
 bool symbolShiftPressed = false;
 bool capsShiftPressed = false;
 bool keyboardModeButtonPressed = false;
@@ -28,17 +27,20 @@ bool modKeySubCTRL = false;
 bool modKeySubALT = false;
 bool modKeySubSHIFT = false;
 bool modKeySubGUI = false;
-bool ledstatus = true;
+bool debug = false;                     //Serial Debug. Disabled by default
+bool ledstatus = true;                  //RGB Led. Enabled by default.
 
 enum {
   MODE_SPECTRUM = 1,
   MODE_GAMEPAD = 2,
   MODE_PC = 3
 };
+
 int keyboardMode;
 int outKey;
 int addrLine; 
 int dataLine;
+int pressed;
 
 // Spectrum 16k/48k keyboard matrix. This matrix layout matches the hardware layout
 // Putting LCTRL & LALT in 7,1 fixes a problem with Fuse not being able to use SymbolShift due to the different locales
@@ -208,14 +210,16 @@ void loop() {
     for (dataLine = 0; dataLine < dataLines; dataLine++) {
 
       // Get the value of the current data line...
-      int pressed = digitalRead(dataPin[dataLine]);
+      pressed = digitalRead(dataPin[dataLine]);
 
       // ...and if it's LOW then a key has been pressed
       if (pressed == LOW) {
-
+        
+        outKey = 0;
+        
         // "Cheat codes"
         // Debug: D + Mode to enable,  S + Mode to disable
-        // LED:   L + Mode to disable, K + Mode to enable
+        // LED:   L + Mode to enable,  K + Mode to disable
         if ( (addrLine == 2 && dataLine == 2) && (digitalRead(keyboardModeButtonPin) == LOW) && (!debug) ) {
           debug = true;
           Serial.println("Debug enabled!");
@@ -225,24 +229,23 @@ void loop() {
           debug = false;
           Serial.println("Debug disabled!");
         }
-        if ( (addrLine == 6 && dataLine == 1) && (digitalRead(keyboardModeButtonPin) == LOW) && (ledstatus) ) {
+        if ( (addrLine == 6 && dataLine == 1) && (digitalRead(keyboardModeButtonPin) == LOW) && (!ledstatus) ) {
+          if (debug) Serial.println("LED enabled!");
+          ledstatus = true;
+        }
+        if ( (addrLine == 6 && dataLine == 2) && (digitalRead(keyboardModeButtonPin) == LOW) && (ledstatus) ) {
           if (debug) Serial.println("LED disabled!");
           ledstatus = false;
           RGB_color(0,0,0);
         }
-        if ( (addrLine == 6 && dataLine == 2) && (digitalRead(keyboardModeButtonPin) == LOW) && (!ledstatus) ) {
-          if (debug) Serial.println("LED enabled!");
-          ledstatus = true;
-        }
-          
+
+                  
         // Deal with special keys by setting flags so we know what has been pressed
         if (addrLine == 7 && dataLine == 1 && !symbolShiftPressed) {
             symbolShiftPressed = true;
         } else if (addrLine == 5 && dataLine == 0 && !capsShiftPressed) {
             capsShiftPressed = true;
         }
-
-        outKey = 0;
 
         // Manage what is sent from the keyboard based on the keyboard mode
         switch (keyboardMode) {
@@ -330,11 +333,11 @@ void loop() {
           if (debug) printDebug(addrLine, dataLine);
           keyPressed[addrLine][dataLine] = true;
         }
-
+        
         // No key has been pressed so manage releasing any keys that were pressed
       } else {
 
-        int outKey = 0;
+        outKey = 0;
 
         // Deal with special keys that may have been pressed previously set
         if (addrLine == 7 && dataLine == 1 && symbolShiftPressed) {
@@ -381,7 +384,6 @@ void loop() {
     // Set the address line back to HIGH
     digitalWrite(address[addrLine], HIGH);
   }
-
 }
 
 void RGB_color(int red_light_value, int green_light_value, int blue_light_value) {
