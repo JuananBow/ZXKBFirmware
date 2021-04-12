@@ -1,5 +1,5 @@
 //  Name:               ZXKBFirmware
-//  Version:            2.1
+//  Version:            2.2
 //  Author:             JuananBow
 //  Original author:    Mike Daley
 //  Date:               April 2021
@@ -33,7 +33,8 @@ bool ledstatus = true;                  //RGB Led. Enabled by default.
 enum {
   MODE_SPECTRUM = 1,
   MODE_GAMEPAD = 2,
-  MODE_PC = 3
+  MODE_PC = 3,
+  MODE_LEDTEST = 4
 };
 
 int keyboardMode;
@@ -41,6 +42,9 @@ int outKey;
 int addrLine; 
 int dataLine;
 int pressed;
+int ledR;
+int ledG;
+int ledB;
 
 // Spectrum 16k/48k keyboard matrix. This matrix layout matches the hardware layout
 // Putting LCTRL & LALT in 7,1 fixes a problem with Fuse not being able to use SymbolShift due to the different locales
@@ -129,13 +133,13 @@ void setup() {
 
   // Setup the keyboard default mode and button pins
   pinMode(keyboardModeButtonPin, INPUT);
-  keyboardMode = MODE_SPECTRUM;
+  keyboardMode = MODE_PC;
 
   // Setup the RGB pins and the default value
   pinMode(red_light_pin, OUTPUT);
   pinMode(green_light_pin, OUTPUT);
   pinMode(blue_light_pin, OUTPUT);
-  RGB_color(64,0,128); // Spectrum mode = Purple
+  RGB_color(128,128,128); // Spectrum mode = Red
 
   // Set the address line pins to output and set HIGH
   for (int a = 0; a < addressLines; a++) {
@@ -181,18 +185,29 @@ void loop() {
     // Changes the color of the RGB Led according to the operation mode active
     if (ledstatus) {
       switch (keyboardMode) {
-            case MODE_SPECTRUM:
-              RGB_color(64,0,128);      // Purple
+            case MODE_SPECTRUM: // Red
+              ledR = 64;
+              ledG = 0;
+              ledB = 0;     
               break;
-            case MODE_GAMEPAD:
-              RGB_color(128,128,128);   // White
+            case MODE_GAMEPAD:  // Yellow
+              ledR = 128;
+              ledG = 128;
+              ledB = 0;   
               break;
-            case MODE_PC:
-              RGB_color(0, 0, 128);     // Blue
+            case MODE_PC:       // White
+              ledR = 128;
+              ledG = 128;
+              ledB = 128;      
               break;
-            default:
-              RGB_color(0, 0, 0);       // Off
+            default:            // Off
+              ledR = 0;
+              ledG = 0;
+              ledB = 0;
       }
+      RGB_color(ledR,ledG,ledB);
+    } else {
+      RGB_color(0, 0, 0);
     }
     // Resets the modkey submode and releases all modifier keys
     clearmodkeys();
@@ -216,30 +231,7 @@ void loop() {
       if (pressed == LOW) {
         
         outKey = 0;
-        
-        // "Cheat codes"
-        // Debug: D + Mode to enable,  S + Mode to disable
-        // LED:   L + Mode to enable,  K + Mode to disable
-        if ( (addrLine == 2 && dataLine == 2) && (digitalRead(keyboardModeButtonPin) == LOW) && (!debug) ) {
-          debug = true;
-          Serial.println("Debug enabled!");
-          printDebug(keyboardModeButtonPin,digitalRead(keyboardModeButtonPin));
-        }
-        if ( (addrLine == 2 && dataLine == 1) && (digitalRead(keyboardModeButtonPin) == LOW) && (debug) ) {
-          debug = false;
-          Serial.println("Debug disabled!");
-        }
-        if ( (addrLine == 6 && dataLine == 1) && (digitalRead(keyboardModeButtonPin) == LOW) && (!ledstatus) ) {
-          if (debug) Serial.println("LED enabled!");
-          ledstatus = true;
-        }
-        if ( (addrLine == 6 && dataLine == 2) && (digitalRead(keyboardModeButtonPin) == LOW) && (ledstatus) ) {
-          if (debug) Serial.println("LED disabled!");
-          ledstatus = false;
-          RGB_color(0,0,0);
-        }
 
-                  
         // Deal with special keys by setting flags so we know what has been pressed
         if (addrLine == 7 && dataLine == 1 && !symbolShiftPressed) {
             symbolShiftPressed = true;
@@ -303,8 +295,55 @@ void loop() {
             }
             break;
 
+          case MODE_LEDTEST:
+            outKey = 0;
+            if (addrLine == 0 && dataLine == 0) RGB_color(0,0,255);     // 1 - Blue
+            if (addrLine == 0 && dataLine == 1) RGB_color(255,0,0);     // 2 - Red
+            if (addrLine == 0 && dataLine == 2) RGB_color(255,0,255);   // 3 - Magenta
+            if (addrLine == 0 && dataLine == 3) RGB_color(0,255,0);     // 4 - Green
+            if (addrLine == 0 && dataLine == 4) RGB_color(0,255,255);   // 5 - Cyan
+            if (addrLine == 3 && dataLine == 4) RGB_color(255,255,0);   // 6 - Yellow
+            if (addrLine == 3 && dataLine == 3) RGB_color(255,255,255); // 7 - White
+            if (addrLine == 3 && dataLine == 0) RGB_color(0,0,0);       // 0 - Off (Black)
+            break;
+            
           default:
             if (debug) Serial.print("ERROR: Unknown keyboard mode");
+        }
+
+        // "Cheat codes"
+        // Check now the position of the Keyboard Mode Button, so we can add extra functions to the keyboard in form of "Cheat codes"
+        // Debug: D + Mode to enable,  X + Mode to disable
+        // LED:   1 + Mode to enable,  0 + Mode to disable, 
+        //        L + Mode to enable LED Test Mode. Keys 0, and 1 to 7 change the color of the LED
+        while (digitalRead(keyboardModeButtonPin) == LOW) {
+
+          if ( (addrLine == 2 && dataLine == 2) && (digitalRead(keyboardModeButtonPin) == LOW) && (!debug) ) {
+            debug = true;
+            Serial.println("Debug enabled!");
+            printDebug(keyboardModeButtonPin,digitalRead(keyboardModeButtonPin));
+          }
+          if ( (addrLine == 5 && dataLine == 2) && (digitalRead(keyboardModeButtonPin) == LOW) && (debug) ) {
+            debug = false;
+            Serial.println("Debug disabled!");
+          }
+          if ( (addrLine == 0 && dataLine == 0) && (digitalRead(keyboardModeButtonPin) == LOW) && (!ledstatus) && (keyboardMode != 4) ) {
+            ledstatus = true;
+            RGB_color(ledR,ledG,ledB);
+            if (debug) Serial.println("LED enabled!");
+          }
+          if ( (addrLine == 3 && dataLine == 0) && (digitalRead(keyboardModeButtonPin) == LOW) && (ledstatus) && (keyboardMode != 4) ) {
+            ledstatus = false;
+            RGB_color(0,0,0);
+            if (debug) Serial.println("LED disabled!");
+          }
+          if ( (addrLine == 6 && dataLine == 1) && (digitalRead(keyboardModeButtonPin) == LOW) && (keyboardMode != 4) ) {
+            if (debug) Serial.println("LED Test Mode enabled!");
+            keyboardMode = 4;
+            RGB_color(0,0,0);
+          }
+          outKey = 0;
+          keyboardModeButtonPressed = false;
         }
 
         // We know what has been pressed and taken the key stroke to be send from the appropriate
@@ -334,7 +373,6 @@ void loop() {
           keyPressed[addrLine][dataLine] = true;
         }
         
-        // No key has been pressed so manage releasing any keys that were pressed
       } else {
 
         outKey = 0;
@@ -367,6 +405,10 @@ void loop() {
             }
             break;
 
+          case MODE_LEDTEST:
+            outKey = 0;
+            break;
+
           default:
             if (debug) Serial.println("ERROR: Unknown keyboard mode");
         }
@@ -384,6 +426,7 @@ void loop() {
     // Set the address line back to HIGH
     digitalWrite(address[addrLine], HIGH);
   }
+  delay(50); // Small delay to avoid dupplicated presses
 }
 
 void RGB_color(int red_light_value, int green_light_value, int blue_light_value) {
