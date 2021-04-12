@@ -327,19 +327,19 @@ void loop() {
             debug = false;
             Serial.println("Debug disabled!");
           }
-          if ( (addrLine == 0 && dataLine == 0) && (digitalRead(keyboardModeButtonPin) == LOW) && (!ledstatus) && (keyboardMode != 4) ) {
+          if ( (addrLine == 0 && dataLine == 0) && (digitalRead(keyboardModeButtonPin) == LOW) && (!ledstatus) && (keyboardMode != MODE_LEDTEST) ) {
             ledstatus = true;
             RGB_color(ledR,ledG,ledB);
             if (debug) Serial.println("LED enabled!");
           }
-          if ( (addrLine == 3 && dataLine == 0) && (digitalRead(keyboardModeButtonPin) == LOW) && (ledstatus) && (keyboardMode != 4) ) {
+          if ( (addrLine == 3 && dataLine == 0) && (digitalRead(keyboardModeButtonPin) == LOW) && (ledstatus) && (keyboardMode != MODE_LEDTEST) ) {
             ledstatus = false;
             RGB_color(0,0,0);
             if (debug) Serial.println("LED disabled!");
           }
-          if ( (addrLine == 6 && dataLine == 1) && (digitalRead(keyboardModeButtonPin) == LOW) && (keyboardMode != 4) ) {
+          if ( (addrLine == 6 && dataLine == 1) && (digitalRead(keyboardModeButtonPin) == LOW) && (keyboardMode != MODE_LEDTEST) ) {
             if (debug) Serial.println("LED Test Mode enabled!");
-            keyboardMode = 4;
+            keyboardMode = MODE_LEDTEST;
             RGB_color(0,0,0);
           }
           outKey = 0;
