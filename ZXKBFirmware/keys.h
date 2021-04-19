@@ -1,4 +1,4 @@
-#define KEY_SPACE			0x20
+#define KEY_SPACE     0x20
 #define KEY_A       	0x61
 #define KEY_B       	0x62
 #define KEY_C       	0x63
