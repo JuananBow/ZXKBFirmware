@@ -1,8 +1,8 @@
 //  Name:               ZXKBFirmware
-//  Version:            2.2
+//  Version:            2.3
 //  Author:             JuananBow
 //  Original author:    Mike Daley
-//  Date:               April 2021
+//  Date:               19 April 2021
 //-------------------------------------------------------------------------
 
 #include <Keyboard.h>
@@ -22,13 +22,10 @@ const int blue_light_pin = 14;
 bool symbolShiftPressed = false;
 bool capsShiftPressed = false;
 bool keyboardModeButtonPressed = false;
-bool modKeySub = false;
-bool modKeySubCTRL = false;
-bool modKeySubALT = false;
-bool modKeySubSHIFT = false;
-bool modKeySubGUI = false;
-bool debug = false;                     //Serial Debug. Disabled by default
-bool ledstatus = true;                  //RGB Led. Enabled by default.
+bool funcKeySub = false;
+bool modKeySub[5] = {false, false, false, false, false}; // Modkey submode status, CTRL, SHIFT, ALT, GUI
+bool debug = false;                                      // Serial Debug. Disabled by default
+bool ledstatus = true;                                   // RGB Led. Enabled by default.
 
 enum {
   MODE_SPECTRUM = 1,
@@ -107,12 +104,12 @@ int pcKeyMapShifted[addressLines][dataLines] = {
 int pcKeyMapSymbolShift[addressLines][dataLines] = {
   // 0------------------1------------------2------------------3---------------4----------------
   {KEY_EXCLAM,        KEY_AT,            KEY_HASH,          KEY_DOLLAR,     KEY_PERCENT},    // 0
-  {KEY_ESC,           KEY_CAROT,         0,                 KEY_LESSTHAN,   KEY_GTRTHAN},    // 1
+  {KEY_ESC,           KEY_CAROT,         KEY_TAB,           KEY_LESSTHAN,   KEY_GTRTHAN},    // 1
   {KEY_TILDA,         KEY_BAR,           KEY_BACKSLASH,     KEY_LEFT_BRACE, KEY_RIGHT_BRACE},// 2
   {KEY_UNDER,         KEY_RIGHT_BRACKET, KEY_LEFT_BRACKET,  KEY_SGL_QUOTE,  KEY_APERSAND},   // 3
   {KEY_DBL_QUOTE,     KEY_SEMICOLON,     0,                 KEY_SQR_RIGHT,  KEY_SQR_LEFT},   // 4
   {0,                 KEY_COLON,         KEY_POUND,         KEY_QUESTION,   KEY_FRWDSLASH},  // 5
-  {KEY_TAB,           KEY_EQUALS,        KEY_PLUS,          KEY_MINUS,      0},              // 6
+  {KEY_PRINTSCREEN,   KEY_EQUALS,        KEY_PLUS,          KEY_MINUS,      0},              // 6
   {KEY_DELETE,        0,                 KEY_PERIOD,        KEY_COMMA,      KEY_ASTER},      // 7
 };
 
@@ -183,34 +180,35 @@ void loop() {
     delay (100);
 
     // Changes the color of the RGB Led according to the operation mode active
+    switch (keyboardMode) {
+      case MODE_SPECTRUM: // Red
+        ledR = 64;
+        ledG = 0;
+        ledB = 0;
+        break;
+      case MODE_GAMEPAD:  // Yellow
+        ledR = 128;
+        ledG = 128;
+        ledB = 0;   
+        break;
+      case MODE_PC:       // White
+        ledR = 128;
+        ledG = 128;
+        ledB = 128;      
+        break;
+      default:            // Off
+        ledR = 0;
+        ledG = 0;
+        ledB = 0;
+    }
     if (ledstatus) {
-      switch (keyboardMode) {
-            case MODE_SPECTRUM: // Red
-              ledR = 64;
-              ledG = 0;
-              ledB = 0;     
-              break;
-            case MODE_GAMEPAD:  // Yellow
-              ledR = 128;
-              ledG = 128;
-              ledB = 0;   
-              break;
-            case MODE_PC:       // White
-              ledR = 128;
-              ledG = 128;
-              ledB = 128;      
-              break;
-            default:            // Off
-              ledR = 0;
-              ledG = 0;
-              ledB = 0;
-      }
       RGB_color(ledR,ledG,ledB);
     } else {
       RGB_color(0, 0, 0);
     }
-    // Resets the modkey submode and releases all modifier keys
+    // Resets all submodes and releases all modifier keys
     clearmodkeys();
+    funcKeySub = false;
 
     if (debug) printDebug(keyboardModeButtonPin,digitalRead(keyboardModeButtonPin));
   }
@@ -258,40 +256,45 @@ void loop() {
               // appropriate number for the arrow e.g. 5, 6, 7, 8. In PC mode this CAPS SHIFT means than as the cursor
               // moves it highlights as well. To stop this happening we release the CAPS SHIFT before sending the arrow
               // key. You now can't highlight with arrow keys but correct movement seemed more important :O)
-              // SymbolShift is added here as well to avoid conflicts with other modifier keys
                  if ((addrLine == 3 && dataLine == 2) || (addrLine == 3 && dataLine == 3) ||
                     (addrLine == 3 && dataLine == 4) || (addrLine == 0 && dataLine == 4) || (addrLine == 7 && dataLine == 1)) {
                     Keyboard.release(KEY_LEFT_SHIFT);
                  }
-              // Pressing numbers 1 to 4 will put the keyboard into an special "modifier keys submode".
+              // Pressing numbers 1 to 4 will put the keyboard into the special "Modifier Keys Submode".
               // In this mode pressing CAPS SHIFT + 1 to 4 will activate CTRL, SHIFT, ALT and GUI keys in that order.
               // These modifier keys will stack. So they will stay pressed until another key out of those four gets pressed.
               if ((addrLine == 0 && dataLine == 0) || (addrLine == 0 && dataLine == 1) ||
                   (addrLine == 0 && dataLine == 2) || (addrLine == 0 && dataLine == 3)) {
-                  modKeySub = true;
+                  modKeySub[0] = true;
                   if (addrLine == 0 && dataLine == 0) {
-                    modKeySubCTRL = true;
+                    modKeySub[1]= true;
                     Keyboard.press(KEY_LEFT_CTRL);  
                   }
                   if (addrLine == 0 && dataLine == 1) {
-                    modKeySubSHIFT = true; 
+                    modKeySub[2]= true; 
                     Keyboard.press(KEY_LEFT_SHIFT);
                   }
                   if (addrLine == 0 && dataLine == 2) {
-                    modKeySubALT = true;
+                    modKeySub[3]= true;
                     Keyboard.press(KEY_LEFT_ALT);  
                   }
                   if (addrLine == 0 && dataLine == 3) {
-                    modKeySubGUI = true;
+                    modKeySub[4]= true;
                     Keyboard.press(KEY_LEFT_GUI);
                   }
               }
               outKey = pcKeyMapShifted[addrLine][dataLine];
             } else if (symbolShiftPressed) {
-              // Keyboard.release(KEY_LEFT_ALT);
-              outKey = pcKeyMapSymbolShift[addrLine][dataLine];
+              // Pressing Symbol Shift + H(Up arrow) will put the keyboard into the special "Function Key Submode".
+              // This will remap the number keys (0-9) to the function keys (F1-F10) temporary.
+              if (funcKeySub) {
+                outKey = gamepadKeyMap[addrLine][dataLine];
+              } else {
+                outKey = pcKeyMapSymbolShift[addrLine][dataLine];
+              }
+              if (addrLine == 6 && dataLine == 4) funcKeySub = true;
             } else {
-              outKey = pcKeyMapNormal[addrLine][dataLine];
+                outKey = pcKeyMapNormal[addrLine][dataLine];
             }
             break;
 
@@ -365,9 +368,8 @@ void loop() {
             
             default:
               Keyboard.press(outKey);
-              if (modKeySub) {
-                clearmodkeys();
-              }
+              if (modKeySub[0]) clearmodkeys();
+              funcKeySub = false;
           }
           if (debug) printDebug(addrLine, dataLine);
           keyPressed[addrLine][dataLine] = true;
@@ -426,7 +428,7 @@ void loop() {
     // Set the address line back to HIGH
     digitalWrite(address[addrLine], HIGH);
   }
-  delay(50); // Small delay to avoid dupplicated presses
+  delay(50); // Small delay to avoid duplicated presses
 }
 
 void RGB_color(int red_light_value, int green_light_value, int blue_light_value) {
@@ -438,11 +440,7 @@ void RGB_color(int red_light_value, int green_light_value, int blue_light_value)
 void clearmodkeys() {
   delay(100);
   Keyboard.releaseAll();
-  modKeySub = false;
-  modKeySubCTRL = false;
-  modKeySubALT = false;
-  modKeySubSHIFT = false;
-  modKeySubGUI = false;
+  memset(modKeySub,0,5);
 }
 
 void printDebug(int addrLine, int dataLine) {
@@ -458,7 +456,7 @@ void printDebug(int addrLine, int dataLine) {
   Serial.println((symbolShiftPressed) ? "SYM ON" : "SYM OFF");
   Serial.print("Keyboard Mode: ");
   Serial.print(keyboardMode);
-  Serial.print(" - Modifier Key Submode: "); Serial.print(modKeySub);
-  Serial.print(" - CTRL:"); Serial.print(modKeySubCTRL);  Serial.print(" SHIFT:"); Serial.print(modKeySubSHIFT);  Serial.print(" ALT:"); Serial.print(modKeySubALT);  Serial.print(" GUI:"); Serial.print(modKeySubGUI);
+  Serial.print(" - Modifier Key Submode: "); Serial.print(modKeySub[0]); Serial.print(funcKeySub);
+  Serial.print(" - CTRL:"); Serial.print(modKeySub[1]);  Serial.print(" SHIFT:"); Serial.print(modKeySub[2]);  Serial.print(" ALT:"); Serial.print(modKeySub[3]);  Serial.print(" GUI:"); Serial.print(modKeySub[4]);
   Serial.println("");
 }

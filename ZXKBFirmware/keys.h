@@ -67,5 +67,4 @@
 #define KEY_SQR_LEFT  0x5b
 #define KEY_SQR_RIGHT 0x5d
 #define KEY_TILDA     0x7e
-
-
+#define KEY_PRINTSCREEN 0xce
