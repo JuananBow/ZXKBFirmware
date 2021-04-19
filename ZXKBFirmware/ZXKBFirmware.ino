@@ -445,18 +445,17 @@ void clearmodkeys() {
 
 void printDebug(int addrLine, int dataLine) {
   //int outKey = spectrumKeyMap[addrLine][dataLine];
-  Serial.print ("Addr Line: "); Serial.print(addrLine);
+  Serial.print("Addr Line: "); Serial.print(addrLine);
   Serial.print(" - ");
   Serial.print("Data Line: "); Serial.print(dataLine);
   Serial.print(" - ");
-  Serial.print("Key: 0x"); Serial.print(outKey,HEX); Serial.print(" "); Serial.print(char(outKey));
+  Serial.print("Key: 0x"); Serial.print(outKey,HEX); Serial.print(" \["); Serial.print(char(outKey));Serial.print("\]");
   Serial.print(" - ");
-  Serial.print((capsShiftPressed) ? "CAPS ON " : "CAPS OFF");
-  Serial.print(" : ");
-  Serial.println((symbolShiftPressed) ? "SYM ON" : "SYM OFF");
-  Serial.print("Keyboard Mode: ");
-  Serial.print(keyboardMode);
-  Serial.print(" - Modifier Key Submode: "); Serial.print(modKeySub[0]); Serial.print(funcKeySub);
-  Serial.print(" - CTRL:"); Serial.print(modKeySub[1]);  Serial.print(" SHIFT:"); Serial.print(modKeySub[2]);  Serial.print(" ALT:"); Serial.print(modKeySub[3]);  Serial.print(" GUI:"); Serial.print(modKeySub[4]);
+  Serial.print("CAPS:");Serial.print(capsShiftPressed);
+  Serial.print(" SYM:");Serial.println(symbolShiftPressed);
+  Serial.print("Keyboard Mode: "); Serial.print(keyboardMode);
+  Serial.print(" - Submodes: "); Serial.print((funcKeySub) ? "Func: ON" : "Func: OFF" ); Serial.print(" "); Serial.print((modKeySub[0]) ? "Mod: ON" : "Mod: OFF" );
+  Serial.print(" - ");
+  Serial.print("CTRL:"); Serial.print(modKeySub[1]); Serial.print(" SHIFT:"); Serial.print(modKeySub[2]); Serial.print(" ALT:"); Serial.print(modKeySub[3]); Serial.print(" GUI:"); Serial.print(modKeySub[4]);
   Serial.println("");
 }
