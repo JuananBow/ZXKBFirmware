@@ -1,5 +1,5 @@
 //  Name:               ZXKBFirmware
-//  Version:            2.3
+//  Version:            2.3.1
 //  Author:             JuananBow
 //  Original author:    Mike Daley
 //  Date:               19 April 2021
@@ -444,7 +444,6 @@ void clearmodkeys() {
 }
 
 void printDebug(int addrLine, int dataLine) {
-  //int outKey = spectrumKeyMap[addrLine][dataLine];
   Serial.print("Addr Line: "); Serial.print(addrLine);
   Serial.print(" - ");
   Serial.print("Data Line: "); Serial.print(dataLine);
